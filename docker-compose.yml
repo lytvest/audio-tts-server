@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  audio-tts-server:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=postgresql
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/audio_tts
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=password
+      - APP_OLLAMA_BASE_URL=http://ollama:11434
+      - APP_F5TTS_BASE_URL=http://f5tts:5000
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      - postgres
+      - ollama
+      - f5tts
+    networks:
+      - audio-tts-network
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=audio_tts
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - audio-tts-network
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - audio-tts-network
+    # Для загрузки модели после запуска контейнера:
+    # docker exec -it <container_name> ollama pull llama3.2
+
+  f5tts:
+    # Здесь должен быть образ F5-TTS сервиса
+    # Пример конфигурации, нужно адаптировать под реальный образ
+    image: f5tts:latest  # Замените на реальный образ
+    ports:
+      - "5000:5000"
+    networks:
+      - audio-tts-network
+    # volumes:
+    #   - ./f5tts/models:/app/models
+
+volumes:
+  postgres_data:
+  ollama_data:
+
+networks:
+  audio-tts-network:
+    driver: bridge
