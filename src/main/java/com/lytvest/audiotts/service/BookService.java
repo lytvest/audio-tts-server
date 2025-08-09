@@ -1,5 +1,6 @@
 package com.lytvest.audiotts.service;
 
+import com.lytvest.audiotts.controller.BooksController;
 import com.lytvest.audiotts.dto.*;
 import com.lytvest.audiotts.dto.request.BookUploadRequest;
 import com.lytvest.audiotts.model.entity.*;
@@ -8,6 +9,7 @@ import com.lytvest.audiotts.model.enums.SentenceStatus;
 import com.lytvest.audiotts.repository.*;
 import com.lytvest.audiotts.service.queue.CharacterDeterminationTask;
 import com.lytvest.audiotts.service.queue.QueueService;
+import com.lytvest.audiotts.service.queue.StressTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -149,27 +151,131 @@ public class BookService {
     }
     
     /**
+     * Обновляет информацию о книге
+     */
+    @Transactional
+    public BookDto updateBook(Long bookId, BooksController.UpdateBookRequest request) {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new RuntimeException("Book not found"));
+        
+        if (request.getTitle() != null && !request.getTitle().trim().isEmpty()) {
+            book.setTitle(request.getTitle().trim());
+        }
+        
+        if (request.getAuthor() != null && !request.getAuthor().trim().isEmpty()) {
+            book.setAuthor(request.getAuthor().trim());
+        }
+        
+        book = bookRepository.save(book);
+        log.info("Updated book {}: title='{}', author='{}'", bookId, book.getTitle(), book.getAuthor());
+        
+        return convertToDto(book);
+    }
+    
+    /**
      * Удаляет книгу
      */
     @Transactional
     public void deleteBook(Long bookId) {
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
-        if (bookOpt.isPresent()) {
-            Book book = bookOpt.get();
-            
-            // Удаляем файл
-            try {
-                Path filePath = Paths.get(book.getFilePath());
-                Files.deleteIfExists(filePath);
-            } catch (IOException e) {
-                log.warn("Could not delete file: {}", book.getFilePath(), e);
-            }
-            
-            // Удаляем из базы данных (каскадно удалятся главы, предложения и персонажи)
-            bookRepository.delete(book);
-            
-            log.info("Deleted book: {}", book.getTitle());
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new RuntimeException("Book not found"));
+        
+        // Удаляем файл
+        try {
+            Path filePath = Paths.get(book.getFilePath());
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            log.warn("Could not delete file: {}", book.getFilePath(), e);
         }
+        
+        // Удаляем из базы данных (каскадно удалятся главы, предложения и персонажи)
+        bookRepository.delete(book);
+        
+        log.info("Deleted book: {}", book.getTitle());
+    }
+    
+    /**
+     * Перезапускает обработку книги
+     */
+    @Transactional
+    public void restartBookProcessing(Long bookId) {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new RuntimeException("Book not found"));
+        
+        List<Chapter> chapters = chapterRepository.findByBookIdOrderByChapterNumber(bookId);
+        
+        for (Chapter chapter : chapters) {
+            // Сбрасываем статус главы
+            chapter.setStatus(ChapterStatus.IN_PROGRESS);
+            chapterRepository.save(chapter);
+            
+            // Получаем все предложения главы
+            List<Sentence> sentences = sentenceRepository.findByChapterIdOrderBySentenceNumber(chapter.getId());
+            
+            for (Sentence sentence : sentences) {
+                // Сбрасываем статус предложения и добавляем в очередь
+                sentence.setStatus(SentenceStatus.WAITING_FOR_CHARACTER);
+                sentence.setCharacter(null);
+                sentence.setTextWithStress(null);
+                sentence.setAudioFilePath(null);
+                sentenceRepository.save(sentence);
+                
+                // Добавляем в очередь определения персонажей
+                List<String> existingCharacters = characterRepository.findByBookId(bookId)
+                        .stream()
+                        .map(CharacterBook::getName)
+                        .collect(Collectors.toList());
+                
+                CharacterDeterminationTask task = new CharacterDeterminationTask(
+                        sentence.getId(),
+                        sentence.getOriginalText(),
+                        existingCharacters,
+                        bookId
+                );
+                queueService.addCharacterDeterminationTask(task);
+            }
+        }
+        
+        log.info("Restarted processing for book: {}", book.getTitle());
+    }
+    
+    /**
+     * Получает завершенные книги
+     */
+    public List<BookDto> getCompletedBooks() {
+        return bookRepository.findAll().stream()
+                .filter(book -> {
+                    BookProcessingStats stats = getBookProcessingStats(book.getId());
+                    return stats.progressPercentage == 100;
+                })
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Получает книги в процессе обработки
+     */
+    public List<BookDto> getProcessingBooks() {
+        return bookRepository.findAll().stream()
+                .filter(book -> {
+                    BookProcessingStats stats = getBookProcessingStats(book.getId());
+                    return stats.progressPercentage > 0 && stats.progressPercentage < 100;
+                })
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Получает книги, ожидающие обработки
+     */
+    public List<BookDto> getWaitingBooks() {
+        return bookRepository.findAll().stream()
+                .filter(book -> {
+                    BookProcessingStats stats = getBookProcessingStats(book.getId());
+                    return stats.progressPercentage == 0;
+                })
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
     }
     
     /**
