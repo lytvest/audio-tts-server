@@ -35,14 +35,29 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers("/api/**") // Отключаем CSRF для API
+                        .ignoringRequestMatchers("/h2-console/**")
+                )
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/api/health").permitAll()
+                        .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/login", "/logout").permitAll()
+                        .requestMatchers("/api/**").authenticated() // API требует аутентификации
                         .anyRequest().authenticated()
                 )
-                .httpBasic()
-                .and()
+                .formLogin(form -> form
+                        .loginPage("/login")
+                        .defaultSuccessUrl("/", true)
+                        .permitAll()
+                )
+                .logout(logout -> logout
+                        .logoutUrl("/logout")
+                        .logoutSuccessUrl("/login?logout")
+                        .permitAll()
+                )
+                .httpBasic() // Для API
                 .headers(headers -> headers.frameOptions().disable()); // For H2 Console
 
         return http.build();
