@@ -45,7 +45,7 @@ public class F5TtsService {
     /**
      * Получает список доступных голосов
      */
-    public Mono<Map<String, Object>> getAvailableVoices() {
+    public Mono<Map> getAvailableVoices() {
         return webClient.get()
                 .uri(f5ttsBaseUrl + "/api/voices")
                 .retrieve()

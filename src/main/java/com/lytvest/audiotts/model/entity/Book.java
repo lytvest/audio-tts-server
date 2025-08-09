@@ -41,7 +41,7 @@ public class Book {
     private List<Chapter> chapters = new ArrayList<>();
     
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Character> characters = new ArrayList<>();
+    private List<CharacterBook> characters = new ArrayList<>();
     
     @PrePersist
     protected void onCreate() {

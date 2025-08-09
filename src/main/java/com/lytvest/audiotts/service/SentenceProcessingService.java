@@ -3,7 +3,7 @@ package com.lytvest.audiotts.service;
 import com.lytvest.audiotts.dto.CharacterDto;
 import com.lytvest.audiotts.dto.SentenceDto;
 import com.lytvest.audiotts.dto.request.CharacterUpdateRequest;
-import com.lytvest.audiotts.model.entity.Character;
+import com.lytvest.audiotts.model.entity.CharacterBook;
 import com.lytvest.audiotts.model.entity.Sentence;
 import com.lytvest.audiotts.model.enums.SentenceStatus;
 import com.lytvest.audiotts.repository.CharacterRepository;
@@ -26,7 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -70,16 +69,16 @@ public class SentenceProcessingService {
                 .orElseThrow(() -> new RuntimeException("Sentence not found"));
         
         // Ищем или создаем персонажа
-        Character character = characterRepository
+        CharacterBook characterBook = characterRepository
                 .findByBookIdAndName(sentence.getChapter().getBook().getId(), characterName)
                 .orElseGet(() -> {
-                    Character newCharacter = new Character();
-                    newCharacter.setBook(sentence.getChapter().getBook());
-                    newCharacter.setName(characterName);
-                    return characterRepository.save(newCharacter);
+                    CharacterBook newCharacterBook = new CharacterBook();
+                    newCharacterBook.setBook(sentence.getChapter().getBook());
+                    newCharacterBook.setName(characterName);
+                    return characterRepository.save(newCharacterBook);
                 });
         
-        sentence.setCharacter(character);
+        sentence.setCharacter(characterBook);
         sentence.setStatus(SentenceStatus.WAITING_FOR_STRESS);
         sentenceRepository.save(sentence);
         
@@ -148,26 +147,26 @@ public class SentenceProcessingService {
      */
     @Transactional
     public CharacterDto updateCharacter(Long characterId, CharacterUpdateRequest request) {
-        Character character = characterRepository.findById(characterId)
+        CharacterBook characterBook = characterRepository.findById(characterId)
                 .orElseThrow(() -> new RuntimeException("Character not found"));
         
-        character.setVoiceId(request.getVoiceId());
-        character.setVoiceName(request.getVoiceName());
-        character.setDescription(request.getDescription());
+        characterBook.setVoiceId(request.getVoiceId());
+        characterBook.setVoiceName(request.getVoiceName());
+        characterBook.setDescription(request.getDescription());
         
-        character = characterRepository.save(character);
+        characterBook = characterRepository.save(characterBook);
         
-        log.info("Updated character {}: voice={}", character.getName(), request.getVoiceId());
+        log.info("Updated character {}: voice={}", characterBook.getName(), request.getVoiceId());
         
-        return convertCharacterToDto(character);
+        return convertCharacterToDto(characterBook);
     }
     
     /**
      * Получает персонажей книги
      */
     public List<CharacterDto> getBookCharacters(Long bookId) {
-        List<Character> characters = characterRepository.findByBookId(bookId);
-        return characters.stream()
+        List<CharacterBook> characterBooks = characterRepository.findByBookId(bookId);
+        return characterBooks.stream()
                 .map(this::convertCharacterToDto)
                 .collect(Collectors.toList());
     }
@@ -219,15 +218,15 @@ public class SentenceProcessingService {
         return dto;
     }
     
-    private CharacterDto convertCharacterToDto(Character character) {
+    private CharacterDto convertCharacterToDto(CharacterBook characterBook) {
         CharacterDto dto = new CharacterDto();
-        dto.setId(character.getId());
-        dto.setName(character.getName());
-        dto.setVoiceId(character.getVoiceId());
-        dto.setVoiceName(character.getVoiceName());
-        dto.setDescription(character.getDescription());
-        dto.setCreatedAt(character.getCreatedAt());
-        dto.setUpdatedAt(character.getUpdatedAt());
+        dto.setId(characterBook.getId());
+        dto.setName(characterBook.getName());
+        dto.setVoiceId(characterBook.getVoiceId());
+        dto.setVoiceName(characterBook.getVoiceName());
+        dto.setDescription(characterBook.getDescription());
+        dto.setCreatedAt(characterBook.getCreatedAt());
+        dto.setUpdatedAt(characterBook.getUpdatedAt());
         return dto;
     }
 }

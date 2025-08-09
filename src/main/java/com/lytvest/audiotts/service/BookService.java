@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -97,7 +96,7 @@ public class BookService {
                     // Добавляем задачу определения персонажа в очередь
                     List<String> existingCharacters = characterRepository.findByBookId(book.getId())
                             .stream()
-                            .map(Character::getName)
+                            .map(CharacterBook::getName)
                             .collect(Collectors.toList());
                     
                     CharacterDeterminationTask task = new CharacterDeterminationTask(
@@ -264,7 +263,7 @@ public class BookService {
         return dto;
     }
     
-    private CharacterDto convertCharacterToDto(Character character) {
+    private CharacterDto convertCharacterToDto(CharacterBook character) {
         CharacterDto dto = new CharacterDto();
         dto.setId(character.getId());
         dto.setName(character.getName());

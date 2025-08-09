@@ -25,7 +25,7 @@ public class Sentence {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "character_id")
-    private Character character;
+    private CharacterBook character;
     
     @Column(name = "sentence_number", nullable = false)
     private Integer sentenceNumber;

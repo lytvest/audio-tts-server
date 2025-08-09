@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Data
 @EqualsAndHashCode(exclude = {"book"})
 @ToString(exclude = {"book"})
-public class Character {
+public class CharacterBook {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
